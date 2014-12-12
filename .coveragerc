@@ -1,0 +1,5 @@
+[run]
+source = trytond.modules.async_sqs
+
+[report]
+omit = */tests/*, */setup.py
