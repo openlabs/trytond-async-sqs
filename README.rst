@@ -9,12 +9,12 @@ Quickstart
 
 ::
 
-    from trytond.modules.async_sqs import async
+    from trytond.modules.async_sqs import async_task
 
     class MyBigReport(Report):
         __name__ = 'report.bigreport'
 
-        @async
+        @async_task('report.bigreport')
         def expensive_method(cls, arg1, arg2):
             """
             An expensive method which determines your future
@@ -42,6 +42,19 @@ where not required. However, that may not work in all situations.
 So results are sent back after creating a new queue with a name generated
 from a uuid which both the client and the worker have pre-agreed.
 
+
+Step 1 is to explicitly decorate the task as one that needs the result.
+
+::
+
+        @async_task('report.bigreport', ignore_result=False)
+        def expensive_method(cls, arg1, arg2):
+            """
+            An expensive method which determines your future
+            """
+            # do something hard and figure it out
+            return your_future
+
 To wait until the result is computed and returned::
 
     result = sync_results.wait()
@@ -50,6 +63,7 @@ To wait just 10 seconds and forget if not received::
 
     result = sync_results.wait(10)
 
+The result can be received only once.
 
 Why do I need this ?
 --------------------
@@ -115,3 +129,13 @@ variables or a config file in your home directory read the documentation
 of boto.
 
 Read more: http://boto.readthedocs.org/en/latest/boto_config_tut.html
+
+
+TODO
+````
+
+One of the ugly (ahem!) aspects of the API currently is the redundant need
+to set the model name in the decorator. Sooner or later this needs to be
+fixed in some way. One possible way is to add a Mixin class ?
+
+If you have ideas, please discuss this on issue #1
