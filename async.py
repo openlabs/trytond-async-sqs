@@ -83,6 +83,10 @@ class AsyncResult(object):
                 'Cannot fetch result for tasks where results are ignored'
             )
 
+        if self.result:
+            # If the result is already cached, just return that
+            return self.result
+
         if wait_time_seconds:
             end_time = datetime.utcnow() + timedelta(
                 seconds=wait_time_seconds
@@ -107,9 +111,11 @@ class AsyncResult(object):
             # The queue's purpose in life is over :(
             queue.delete()
 
-            return Async.deserialize_message(
+            self.result = Async.deserialize_message(
                 results[0].get_body()
             )['result']
+
+        return self.result
 
 
 ResultOptions = namedtuple(
