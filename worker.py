@@ -13,7 +13,7 @@ from trytond import backend
 from trytond.pool import Pool
 from trytond.transaction import Transaction
 
-logger = logging.getLogger('AsyncSQSWorker')
+logger = logging.getLogger('AsyncSQS')
 
 
 class Listener(object):
@@ -72,10 +72,15 @@ class Listener(object):
             # within the same transaction.
             payload = Async.deserialize_message(message.get_body())
             try:
+                logger.debug("Message body: %s" % payload)
                 result = Async.execute_task(payload)
-            except Exception:
+            except Exception, exc:
+                logger.error("Transaction Rollback due to failure")
+                logger.error(exc)
                 transaction.cursor.rollback()
             else:
+                logger.debug("Task Succesful")
+                logger.debug(result)
                 transaction.cursor.commit()
                 return result
 
