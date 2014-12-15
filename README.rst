@@ -14,8 +14,8 @@ Quickstart
     class MyBigReport(Report):
         __name__ = 'report.bigreport'
 
-        @async_task('report.bigreport')
-        def expensive_method(cls, arg1, arg2):
+        @async_task()
+        def expensive_method(self, arg1, arg2):
             """
             An expensive method which determines your future
             """
@@ -31,7 +31,7 @@ code will continue to work as expected::
 
 To execute the same report asynchronously, on a worker::
 
-    Pool().get('report.bigreport').expensive_method.defer(1, 2)
+    Pool().get('report.bigreport').expensive_method(1, 2, _defer_=True)
 
 How about Results
 -----------------
@@ -47,8 +47,8 @@ Step 1 is to explicitly decorate the task as one that needs the result.
 
 ::
 
-        @async_task('report.bigreport', ignore_result=False)
-        def expensive_method(cls, arg1, arg2):
+        @async_task(ignore_result=False)
+        def expensive_method(self, arg1, arg2):
             """
             An expensive method which determines your future
             """
@@ -131,11 +131,36 @@ of boto.
 Read more: http://boto.readthedocs.org/en/latest/boto_config_tut.html
 
 
+Known Issues
+````````````
+
+The python `@classmethod` assumes in the implementation of its `__get__()` method
+that the wrapped function is a normal function and breaks the descriptor protocol.
+
+To get around this, you should place the `async_task` decorator outside of the
+`@classmethod` decorator and never inside.
+
+Example::
+
+    class MyBigReport(Report):
+        __name__ = 'report.bigreport'
+
+        @async_task()
+        @classmethod
+        def expensive_method(cls, arg1, arg2):
+            """
+            An expensive method which determines your future
+            """
+            # do something hard and figure it out
+            return your_future
+
+Read more: `http://wrapt.readthedocs.org/en/latest/issues.html#classmethod-get`_
+
 TODO
 ````
 
-One of the ugly (ahem!) aspects of the API currently is the redundant need
-to set the model name in the decorator. Sooner or later this needs to be
-fixed in some way. One possible way is to add a Mixin class ?
-
-If you have ideas, please discuss this on issue #1
+One of the ugly (ahem!) aspects of the API currently is the need to pass
+the keyword argument `_defer_` to pass the task. A better syntax would be
+like the celery api 
+`Pool().get('report.bigreport').expensive_method.defer(1, 2)`. If you have
+any ideas on how this could be done, pull requests are welcome.

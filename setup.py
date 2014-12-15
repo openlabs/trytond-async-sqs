@@ -82,6 +82,7 @@ minor_version = int(minor_version)
 
 requires = [
     'boto',
+    'wrapt',
 ]
 
 MODULE2PREFIX = {}

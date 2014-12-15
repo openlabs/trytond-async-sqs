@@ -12,13 +12,12 @@
     :license: 3-clause BSD License, see COPYRIGHT for more details
 """
 import time
-import inspect
 import logging
-import functools
 from uuid import uuid4
 from collections import namedtuple
 from datetime import datetime, timedelta
 
+import wrapt
 import boto
 from trytond.config import CONFIG
 from trytond.pool import PoolMeta, Pool
@@ -37,50 +36,36 @@ if 'sqs_region' in CONFIG.options:
     boto.sqs.connect_to_region(CONFIG.options['sqs_region'])
 
 
-def async_task(model_name=None, ignore_result=True, visibility_timeout=60):
-    """
-    A decorator to make it convenient to call method both asynchronously
-    and synchronously.
-    """
-    def wrap(function):
-        @functools.wraps(function)
-        def wrapped_func(*args, **kwargs):
-            return function(*args, **kwargs)
+class async_task(object):
 
-        def defer(*args, **kwargs):
-            Async = Pool().get('async.async')
+    def __init__(self, ignore_result=True, visibility_timeout=60):
+        self.ignore_result = ignore_result
+        self.visibility_timeout = visibility_timeout
 
-            # Active record instance for cases where the method is called
-            # on an active record instance
-            instance = None
+    @wrapt.decorator
+    def __call__(self, wrapped, instance, args, kwargs):
+        if kwargs.pop('_defer_', False) is False:
+            return wrapped(*args, **kwargs)
 
-            # Find if its an instance method from inspect
-            arg_spec = inspect.getargspec(function)
+        # This is a defered call
+        model_name = instance.__name__
+        if isinstance(instance, Model):
+            active_record = instance
+        else:
+            active_record = None
 
-            if 'self' in arg_spec.args:
-                model_name = args[0].__class__.__name__
-                instance, args = args[0], args[1:]
-            # elif 'cls' in arg_spec.args:
-            #    model_name = args[0].__name__
-            elif wrapped_func.model_name is None:
-                raise Exception('model_name is not defined')
-            else:
-                model_name = wrapped_func.model_name
-
-            return Async.defer(
-                model=model_name,
-                method=function.__name__,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-                result_options=ResultOptions(ignore_result, visibility_timeout)
+        Async = Pool().get('async.async')
+        return Async.defer(
+            model=model_name,
+            method=wrapped.__name__,
+            instance=active_record,
+            args=args,
+            kwargs=kwargs,
+            result_options=ResultOptions(
+                self.ignore_result,
+                self.visibility_timeout,
             )
-
-        wrapped_func.defer = defer
-        wrapped_func.model_name = model_name
-        wrapped_func.is_async_task = True
-        return wrapped_func
-    return wrap
+        )
 
 
 class AsyncResult(object):
