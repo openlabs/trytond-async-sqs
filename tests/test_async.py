@@ -74,11 +74,30 @@ class TestAsync(unittest.TestCase):
                 'method_name': 'search',
                 'args': [[]],
                 'kwargs': {'limit': 10},
+                'instance': None,
             })
             self.assertEqual(
                 result,
                 IRUIView.search([], limit=10)
             )
+
+    def test_execute_task_instance(self):
+        """
+        Given a payload a task should get executed
+        """
+        Async = POOL.get('async.async')
+        IRUIView = POOL.get('ir.ui.view')
+
+        with Transaction().start(DB_NAME, USER, context=CONTEXT):
+            view, = IRUIView.search([], limit=1)
+            result = Async.execute_task({
+                'model_name': IRUIView,
+                'method_name': 'get_rec_name',
+                'args': [None],
+                'kwargs': {},
+                'instance': view,
+            })
+            self.assertEqual(result, view.get_rec_name(None))
 
     @mock_sqs
     def test_defer(self):
@@ -93,7 +112,33 @@ class TestAsync(unittest.TestCase):
 
             ids = map(int, IRUIView.search([], limit=10))
             Async.defer(
-                IRUIView, IRUIView.read, [ids, ['name']]
+                model=IRUIView,
+                method=IRUIView.read,
+                args=[ids, ['name']],
+            )
+
+            # Chech that there is 1 message int he queue
+            queue = Async.get_queue()
+            messages = conn.receive_message(queue, number_messages=2)
+
+            self.assertEqual(len(messages), 1)
+
+    @mock_sqs
+    def test_defer_instance(self):
+        """
+        Test the sending of message for instance method
+        """
+        Async = POOL.get('async.async')
+        IRUIView = POOL.get('ir.ui.view')
+
+        with Transaction().start(DB_NAME, USER, context=CONTEXT):
+            conn = Async.get_sqs_connection()
+
+            view, = IRUIView.search([], limit=1)
+            Async.defer(
+                instance=view,
+                method=IRUIView.get_rec_name,
+                args=[None],
             )
 
             # Chech that there is 1 message int he queue
@@ -115,7 +160,9 @@ class TestAsync(unittest.TestCase):
 
             ids = map(int, IRUIView.search([], limit=10))
             Async.defer(
-                IRUIView, IRUIView.read, [ids, ['name']]
+                model=IRUIView,
+                method=IRUIView.read,
+                args=[ids, ['name']]
             )
 
             # Manually send the message to execute
@@ -127,6 +174,36 @@ class TestAsync(unittest.TestCase):
 
             # Now ensure that the result is same
             self.assertEqual(result, IRUIView.read(ids, ['name']))
+
+    @mock_sqs
+    def test_defer_execution_instance(self):
+        """
+        Test the sending of message and that it executes as expected
+        on the instance
+        """
+        Async = POOL.get('async.async')
+        IRUIView = POOL.get('ir.ui.view')
+
+        with Transaction().start(DB_NAME, USER, context=CONTEXT):
+            conn = Async.get_sqs_connection()
+
+            view, = IRUIView.search([], limit=1)
+            Async.defer(
+                model=IRUIView,
+                method=IRUIView.get_rec_name,
+                instance=view,
+                args=[None]
+            )
+
+            # Manually send the message to execute
+            queue = Async.get_queue()
+            message, = conn.receive_message(queue, number_messages=1)
+            result = Async.execute_task(
+                Async.deserialize_message(message.get_body())
+            )
+
+            # Now ensure that the result is same
+            self.assertEqual(result, view.get_rec_name(None))
 
     @mock_sqs
     def test_defer_result(self):
@@ -141,7 +218,10 @@ class TestAsync(unittest.TestCase):
 
             ids = map(int, IRUIView.search([], limit=10))
             result_async = Async.defer(
-                IRUIView, IRUIView.read, [ids, ['name']], {},
+                model=IRUIView,
+                method=IRUIView.read,
+                args=[ids, ['name']],
+                kwargs={},
                 result_options=ResultOptions(False, 60)
             )
             expected_result = IRUIView.read(ids, ['name'])
