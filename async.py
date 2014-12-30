@@ -31,7 +31,7 @@ __metaclass__ = PoolMeta
 logger = logging.getLogger('AsyncSQS')
 
 
-if 'sqs_region' in CONFIG.options:
+if 'sqs_region' in CONFIG.options:  # noqa
     # If a region is specified for SQS use that
     boto.sqs.connect_to_region(CONFIG.options['sqs_region'])
 

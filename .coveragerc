@@ -2,4 +2,4 @@
 source = trytond.modules.async_sqs
 
 [report]
-omit = */tests/*, */setup.py
+omit = */tests/*, */setup.py, */worker.py

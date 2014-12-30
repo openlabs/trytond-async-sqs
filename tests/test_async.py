@@ -28,6 +28,9 @@ from trytond.tests.test_tryton import DB_NAME, USER, CONTEXT, POOL
 from trytond.transaction import Transaction
 from trytond.modules.async_sqs import ResultOptions
 
+os.environ['AWS_ACCESS_KEY_ID'] = "sqs-access-key"
+os.environ['AWS_SECRET_ACCESS_KEY'] = "sqs-secret-key"
+
 
 class TestAsync(unittest.TestCase):
     """
